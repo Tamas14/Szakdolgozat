@@ -9,7 +9,8 @@ let dates = null;
 //Closeprices array in order of dates
 let closePrices = [];
 
-/* Contains all the timestamps when the algorithm bought/sold stock
+/*
+ * Contains all the timestamps when the algorithm bought/sold stock
  * {date: ,
  * type: ,
  * wallet: ,
@@ -21,17 +22,21 @@ let exchangeArr = [];
 //The data which is being processed can be limited for testing purpose
 let dataLimit = {limit: true, quantity: 100000};
 
-//
+/*
+ * This object makes the algorithm wait <remainingWaitTime> iterations
+ * After buying, the <remainingWaitTime> goint to be equals to <minimumWaitTime>
+ */
 let stopTrading = {minimumWaitTime: 10, remainingWaitTime: 0};
-let buyLimit = 2000;
 
 let settings = {
-    startingMoney: 10000
+    startingMoney: 10000,
+    buyLimit: 2000
 }
+
+let disableOutput = false;
 
 //Contains all the tickers from /stocks folder
 let tickers = [];
-
 
 $(document).ready(function () {
     console.log("-> Program init started");
@@ -64,43 +69,18 @@ $(document).ready(function () {
     });
 });
 
-let sum = 0;
-let testMode = false;
-let calculateWeights = false;
-
 let toCSV = [];
 
 let headers = {
     ticker: 'Ticker'
 }
 
-/*async function generateStatistics() {
-    testMode = true;
-    for (let buyLimit of [2000, 4000, 6000, 8000]) {
-        $("#buyLimit").val(buyLimit);
-        headers.data = "Data";
+const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+let tickerIndex = 0;
+let bestofthebest = {};
 
-        for (let ticker of tickers) {
-            $("#stocks").val(ticker);
-            let result = await loadStock(weights);
-            toCSV.push({
-                ticker: ticker,
-                [buyLimit]: buyLimit,
-                gain: Math.floor(result.money - settings.startingMoney)
-            });
-        }
-    }
-
-    exportCSVFile(headers, toCSV, "export");
-    testMode = false;
-}*/
-
-const sleep = (delay) => new Promise((resolve)=>setTimeout(resolve, delay));
-let tickerIndex = 26;
-let bestofthebest = {allGains: 1646450.4351314313};
-
-async function bigTest(csvArray = null){
-    if(csvArray == null) {
+async function bigTest(csvArray = null) {
+    if (csvArray == null) {
         let ticker = tickers[tickerIndex++];
         $("#stocks").val(ticker);
         await loadStock(weights);
@@ -108,36 +88,37 @@ async function bigTest(csvArray = null){
         init();
         process();
 
-        while(processing)
+        while (processing)
             await sleep(1000);
 
         await generateStatistics(false, bigTest);
-    }else{
+    } else {
         let allGains = 0;
-        for(let item of csvArray){
-            for(let number of item.data){
+        for (let item of csvArray) {
+            for (let number of item.data) {
                 allGains += number;
             }
         }
         let tmp = {arr: csvArray, allGains: allGains, mutant: best_mutation.weights};
-        if(bestofthebest.allGains < tmp.allGains){
+        if (bestofthebest.allGains < tmp.allGains) {
             bestofthebest = tmp;
         }
         console.log(tmp);
 
-        if(tickerIndex == tickers.length) {
+        if (tickerIndex == tickers.length) {
             console.log(bestofthebest);
             return;
-        }else{
+        } else {
             bigTest();
         }
     }
 }
 
-async function generateStatistics(download, callback = () => {}) {
-    testMode = true;
+async function generateStatistics(download, callback = () => {
+}) {
+    disableOutput = true;
     toCSV = [];
-    let buyLimitArr = [2000, 4000, 6000, 8000];
+    let buyLimitArr = [/*2000, 4000, 6000,*/ 8000];
 
     for (let buyLimit of buyLimitArr)
         headers["Limit_" + buyLimit] = buyLimit
@@ -159,32 +140,29 @@ async function generateStatistics(download, callback = () => {}) {
 
     if (download) exportCSVFile(headers, toCSV, "export");
 
-    testMode = false;
+    disableOutput = false;
     callback(toCSV);
 }
 
 function reset() {
     lines = null;
-
     dates = null;
-    closePrices = [];
 
+    closePrices = [];
     exchangeArr = [];
 
     dataLimit = {limit: false, quantity: 100000};
-
     stopTrading = {minimumWaitTime: 10, remainingWaitTime: 0};
-    buyLimit = 2000;
 
     settings = {
-        startingMoney: 10000
+        startingMoney: 10000,
+        buyLimit: 2000
     }
 
     wallet = undefined;
     stocks = 0;
 
     signalIsLower = undefined;
-
     sma50IsLower = undefined;
 
     lastBuy = undefined;
@@ -195,7 +173,7 @@ function reset() {
 
 function loadStock(mutant = null) {
     return new Promise((resolve) => {
-        if (mutant != null && dates != null && calculateWeights) {
+        if (mutant != null && dates != null && genetic.isProcessing) {
             let stats = {
                 money: 0
             }
@@ -203,10 +181,10 @@ function loadStock(mutant = null) {
             dataLimit = {limit: false, quantity: 100000};
 
             stopTrading = {minimumWaitTime: 10, remainingWaitTime: 0};
-            buyLimit = 2000;
 
             settings = {
-                startingMoney: 10000
+                startingMoney: 10000,
+                buyLimit: 2000
             }
 
             wallet = undefined;
@@ -236,7 +214,7 @@ function loadStock(mutant = null) {
         $("#spinner").prop("hidden", false);
 
         settings.startingMoney = $("#startMoney").val();
-        buyLimit = parseFloat($("#buyLimit").val());
+        settings.buyLimit = parseFloat($("#buyLimit").val());
 
         dataLimit.limit = $('#dataLimitcb').prop("checked");
         dataLimit.quantity = $("#dataLimit").val();
@@ -253,7 +231,7 @@ function loadStock(mutant = null) {
         }).then(() => {
             dates = [];
 
-            if (!testMode)
+            if (!disableOutput)
                 console.log("-> " + stock + " Stock data loaded");
             for (let i = 0; i < lines.length; i++) {
                 dates.push(Date.parse(lines[i][0]));
@@ -267,15 +245,15 @@ function loadStock(mutant = null) {
                     money: 0
                 }
 
-                if (!testMode)
+                if (!disableOutput)
                     console.log("-> Starting to trade");
 
                 stats.money = exchange(settings.startingMoney, mutant);
 
-                if (!testMode)
+                if (!disableOutput)
                     console.log("-> Trading finished successfully");
 
-                if (!testMode) {
+                if (!disableOutput) {
                     console.log("Kezdő összeg: " + settings.startingMoney);
                     console.log("Átlag pénz a vásárlások végén: " + stats.money);
 
@@ -294,10 +272,9 @@ function loadStock(mutant = null) {
                 $("#spinner").prop("hidden", true);
                 $("#loadBtnText").text("Indítás");
 
-                if (!testMode)
+                if (!disableOutput)
                     loadChart2(stock);
 
-                //callback(stats);
                 resolve(stats);
             });
         });
@@ -330,6 +307,10 @@ function processData(allText) {
     allTextLines = null;
 }
 
+/*
+ * For any given A and B arrays with the same lenght,
+ * the algorithm will calculate A-B
+ */
 function subtractArrays(a, b) {
     let x = [];
 
@@ -343,6 +324,15 @@ function subtractArrays(a, b) {
     return x;
 }
 
+/*
+ * This algorithm will set the data length of A equals to B,
+ * so they are going to have exactly the same number of zeros
+ * in the beginning.
+ *
+ * A =      [0, 0, 1, 2, 3, 4]
+ * B =      [0, 0, 0, 0, 1, 2]
+ * Output = [0, 0, 0, 0, 3, 4]
+ */
 function setToExactSize(a, b) {
     let x = [];
 
@@ -357,7 +347,7 @@ function setToExactSize(a, b) {
     return x;
 }
 
-function min(arr) {
+/*function min(arr) {
     let min;
     arr.forEach((key) => {
         if (!isFinite(min)) {
@@ -370,15 +360,25 @@ function min(arr) {
     });
 
     return min;
-}
+}*/
 
+/*
+ * This algoritm will merge two arrays
+ * A =      [1, 2, 3, 4]
+ * B =      [5, 6, 7, 8]
+ * Output = [[1, 5], [2, 6], [3, 7], [4, 8]]
+ */
 function merge(_key, _value) {
     let result = [];
     _key.forEach((key, i) => result[i] = [_key[i], _value[i]]);
     return result;
 }
 
-function exchangeArrBoomer(type, value) {
+/*
+ * Exchange array has two types: buy and sell
+ * This algorithm will separate them, and give back the date and the price of the transaction
+ */
+function separateExchangeArray(type) {
     let temp = [];
     exchangeArr.forEach((key, i) => {
         if (key.type == type) temp.push([key.date, key.stock_price])
@@ -387,6 +387,7 @@ function exchangeArrBoomer(type, value) {
 }
 
 let chart;
+
 function loadChart2(stock) {
     chart = Highcharts.stockChart('container', {
 
@@ -479,7 +480,7 @@ function loadChart2(stock) {
             },
             {
                 name: 'Buy',
-                data: exchangeArrBoomer("buy", 1),
+                data: separateExchangeArray("buy"),
                 lineWidth: 0,
                 marker: {
                     enabled: true,
@@ -497,7 +498,7 @@ function loadChart2(stock) {
             },
             {
                 name: 'Sell',
-                data: exchangeArrBoomer("sell", 0),
+                data: separateExchangeArray("sell"),
                 lineWidth: 0,
                 marker: {
                     enabled: true,
@@ -638,9 +639,6 @@ function reCalculate(point) {
     });
 }
 
-let timeFromChange = 0;
-let changed = false;
-
 let decision = {
     buy: 0,
     sell: 0
@@ -661,9 +659,8 @@ function exchange(startingMoney, mutant = null) {
     stocks = 0;
 
     stopTrading.remainingWaitTime = stopTrading.minimumWaitTime;
-    timeFromChange = 0;
 
-    for (let i = 0; i < closePrices.length; i+=2) {
+    for (let i = 0; i < closePrices.length; i += 2) {
         if (sma200Arr[i] == 0)
             continue;
 
@@ -681,39 +678,39 @@ function exchange(startingMoney, mutant = null) {
         smaSignalTest(i);
 
         if (sma50IsLower) {
-                decision.buy += mutant[0];
+            decision.buy += mutant[0];
         } else {
-                decision.sell += mutant[1];
+            decision.sell += mutant[1];
         }
 
         if (signalIsLower && macdSignalTest(i)) {
-                decision.buy += mutant[2];
+            decision.buy += mutant[2];
         } else if (!signalIsLower && macdSignalTest(i)) {
-                decision.sell += mutant[3];
+            decision.sell += mutant[3];
         }
 
         if (macdArr[i] > 0 || macdRising(i)) {
-                decision.buy += mutant[4];
+            decision.buy += mutant[4];
         }
 
         if (macdArr[i] < 0 || !macdRising(i)) {
-                decision.sell += mutant[5];
+            decision.sell += mutant[5];
         }
 
         if (rsiArr[i] < 30) {
-                decision.buy += mutant[6];
+            decision.buy += mutant[6];
         } else if (rsiArr[i] > 70) {
             decision.sell += mutant[7];
         }
 
         if (rsiArr[i] < 20) {
-                decision.buy += mutant[8];
+            decision.buy += mutant[8];
         } else if (rsiArr[i] > 80) {
-                decision.sell += mutant[9];
+            decision.sell += mutant[9];
         }
 
         if (isFinite(lastBuy) && lastBuy * 1.001 > stocks * closePrices[i])
-                decision.sell += mutant[10];
+            decision.sell += mutant[10];
 
         if (wallet > closePrices[i] && decisionTest() == "buy") {
             if (isFinite(lastBuy) && lastBuy * 0.998 < stocks * closePrices[i])
@@ -733,7 +730,7 @@ let lastBuy;
 
 function buy(stock_price, i) {
     let max = Math.floor(wallet * 0.999 / stock_price);
-    let buy = Math.floor(buyLimit / stock_price);
+    let buy = Math.floor(settings.buyLimit / stock_price);
     buy = buy > max ? max : buy;
     stocks += buy;
     wallet -= buy * stock_price * 1.001;
@@ -742,7 +739,7 @@ function buy(stock_price, i) {
 
     stopTrading.remainingWaitTime = stopTrading.minimumWaitTime;
 
-    if (!testMode)
+    if (!disableOutput)
         exchangeArr.push({date: dates[i], type: "buy", wallet: wallet, amount: buy, stock_price: stock_price});
 }
 
@@ -753,6 +750,6 @@ function sell(stock_price, i) {
 
     lastBuy = undefined;
 
-    if (!testMode)
+    if (!disableOutput)
         exchangeArr.push({date: dates[i], type: "sell", wallet: wallet, amount: sell, stock_price: stock_price});
 }

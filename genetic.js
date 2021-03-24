@@ -8,7 +8,13 @@ let best_mutation;
 
 genetic = {
     isProcessing: false,
-    start_money: 10000
+    start_money: 10000,
+    iterations: 50
+}
+
+function startGeneticAlgorithm(){
+    init();
+    process();
 }
 
 function init(){
@@ -19,7 +25,8 @@ function init(){
     };
     i = 0;
     mutants = getInitialPopulation();
-    processing = true;
+    genetic.isProcessing = true;
+    disableOutput = true;
 }
 
 function calcFitness (start_money, end_money) {
@@ -27,15 +34,15 @@ function calcFitness (start_money, end_money) {
 }
 
 function process(){
-    calculateWeights = true;
     mutants = newGeneration(mutants);
 }
 
 async function newGeneration(population) {
-    if(i > 50) {
-        console.info("Cannot get better population in 50 interations.");
-        processing = false;
-        calculateWeights = false;
+    if(i > genetic.iterations) {
+        console.info("Cannot get better population in " + genetic.iterations + " interations.");
+        console.info(best_mutation);
+        genetic.isProcessing = false;
+        disableOutput = false;
         return;
     }
 
@@ -76,12 +83,10 @@ async function newGeneration(population) {
         best_mutation.money = result[best].money;
         best_mutation.weights = population[fitness.indexOf(maxFitness)];
         i = 0;
+        console.log(best_mutation);
     }
 
     i++;
-
-    console.log(best_mutation);
-
     mutants = newGeneration(mutants);
 }
 
