@@ -9,15 +9,15 @@ let best_mutation;
 genetic = {
     isProcessing: false,
     start_money: 10000,
-    iterations: 50
+    iterations: 100
 }
 
-function startGeneticAlgorithm(){
+function startGeneticAlgorithm() {
     init();
     process();
 }
 
-function init(){
+function init() {
     best_mutation = {
         fitness: 0,
         money: 0,
@@ -29,16 +29,16 @@ function init(){
     disableOutput = true;
 }
 
-function calcFitness (start_money, end_money) {
+function calcFitness(start_money, end_money) {
     return end_money / start_money;
 }
 
-function process(){
+function process() {
     mutants = newGeneration(mutants);
 }
 
 async function newGeneration(population) {
-    if(i > genetic.iterations) {
+    if (i > genetic.iterations) {
         console.info("Cannot get better population in " + genetic.iterations + " interations.");
         console.info(best_mutation);
         genetic.isProcessing = false;
@@ -50,35 +50,32 @@ async function newGeneration(population) {
 
     let fitness = [];
     let result = [];
-    for(let mutant of population){
+    for (let mutant of population) {
         result.push(await loadStock(mutant));
-        fitness.push(calcFitness(start_money, result[result.length-1].money));
+        fitness.push(calcFitness(start_money, result[result.length - 1].money));
     }
 
-    let avgFitness = fitness.reduce((a, b) => a + b ) / fitness.length;
     let best = getBest(fitness);
-
     let maxFitness = Math.max.apply(null, fitness);
 
     population
-        .forEach( (e, i) =>  {
-            let fit = map(fitness[i],0,maxFitness,0,0.1);
-            let pool = Array(Math.floor(fit*100)).fill(e);
-            matePool = [ ...matePool, ...pool];
+        .forEach((e, i) => {
+            let fit = map(fitness[i], 0, maxFitness, 0, 0.1);
+            let pool = Array(Math.floor(fit * 100)).fill(e);
+            matePool = [...matePool, ...pool];
         })
 
     let mutants = population.map((a) => {
-        let i = Math.floor(Math.random()*matePool.length);
-        let j = Math.floor(Math.random()*matePool.length);
+        let i = Math.floor(Math.random() * matePool.length);
+        let j = Math.floor(Math.random() * matePool.length);
 
-        let child = crossover(matePool[j],matePool[j]);
-
+        let child = crossover(matePool[i], matePool[j]);
         let mutant = mutate(child);
 
         return mutant;
     })
 
-    if(best_mutation.fitness < maxFitness) {
+    if (best_mutation.fitness < maxFitness) {
         best_mutation.fitness = maxFitness;
         best_mutation.money = result[best].money;
         best_mutation.weights = population[fitness.indexOf(maxFitness)];
@@ -92,7 +89,7 @@ async function newGeneration(population) {
 
 function mutate(child) {
     return child
-        .map( e =>
+        .map(e =>
             Math.random() < 0.1
                 ?
                 getRandomNumber()
@@ -101,33 +98,33 @@ function mutate(child) {
         )
 }
 
-function crossover(a,b) {
+function crossover(a, b) {
     let len = a.length;
-    let midpoint = Math.floor(Math.random()*len);
+    let midpoint = Math.floor(Math.random() * len);
 
-    let child  = a.slice(0,midpoint).concat(b.slice(midpoint,len));
+    let child = a.slice(0, midpoint).concat(b.slice(midpoint, len));
 
     return child;
 }
 
-function map (num, in_min, in_max, out_min, out_max) {
+function map(num, in_min, in_max, out_min, out_max) {
     return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-function getBest(fitness){
+function getBest(fitness) {
     return fitness.indexOf(Math.max(...fitness));
 }
 
 //10 elemű
 function getInitialPopulation() {
     return [...new Array(10)]
-        .map( d =>
+        .map(d =>
             Array(11)
                 .fill("0")
-                .map( d => getRandomNumber() )
+                .map(d => getRandomNumber())
         );
 }
 
-function getRandomNumber(){
-    return Math.random()*10;
+function getRandomNumber() {
+    return Math.random() * 10;
 }

@@ -20,7 +20,7 @@ let closePrices = [];
 let exchangeArr = [];
 
 //The data which is being processed can be limited for testing purpose
-let dataLimit = {limit: true, quantity: 100000};
+let dataLimit = {limit: false, quantity: 100000};
 
 /*
  * This object makes the algorithm wait <remainingWaitTime> iterations
@@ -45,14 +45,12 @@ $(document).ready(function () {
         success: function (data) {
             $(data).find("td > a").each(function () {
                 let file = $(this).attr("href").substr(1);
-
                 file = file.substr(file.indexOf("/") + 1, file.lastIndexOf("/") - file.indexOf("/") - 1);
 
-                if (file == "..")
+                if (file == ".." || file == "")
                     return;
 
                 tickers.push(file);
-
                 $("#stocks").append("<option>" + file + "</option>");
             });
         }
@@ -67,6 +65,10 @@ $(document).ready(function () {
     $("#simulationFormToggler").click(function () {
         $("#simulationForm").slideToggle("slow");
     });
+
+    $("#transactions").click(function () {
+        $("#transactionsTableDiv").slideToggle("slow");
+    });
 });
 
 let toCSV = [];
@@ -77,7 +79,7 @@ let headers = {
 
 const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
 let tickerIndex = 0;
-let bestofthebest = {};
+let bestofthebest = {allGains: 0};
 
 async function bigTest(csvArray = null) {
     if (csvArray == null) {
@@ -88,7 +90,7 @@ async function bigTest(csvArray = null) {
         init();
         process();
 
-        while (processing)
+        while (genetic.isProcessing)
             await sleep(1000);
 
         await generateStatistics(false, bigTest);
@@ -118,7 +120,7 @@ async function generateStatistics(download, callback = () => {
 }) {
     disableOutput = true;
     toCSV = [];
-    let buyLimitArr = [/*2000, 4000, 6000,*/ 8000];
+    let buyLimitArr = [2000, 4000, 6000, 8000, -1];
 
     for (let buyLimit of buyLimitArr)
         headers["Limit_" + buyLimit] = buyLimit
@@ -142,6 +144,16 @@ async function generateStatistics(download, callback = () => {
 
     disableOutput = false;
     callback(toCSV);
+}
+
+function extendDate(num) {
+    if (num < 10)
+        return "0" + num;
+    return num;
+}
+
+function formatDate(d) {
+    return d.getFullYear() + ". " + extendDate(d.getMonth() + 1) + ". " + extendDate(d.getDate()) + " " + extendDate(d.getHours()) + ":" + extendDate(d.getMinutes())
 }
 
 function reset() {
@@ -240,7 +252,7 @@ function loadStock(mutant = null) {
 
             lines = [];
 
-            reCalculate(0).then(() => {
+            reCalculate().then(() => {
                 let stats = {
                     money: 0
                 }
@@ -265,8 +277,21 @@ function loadStock(mutant = null) {
                     else
                         $("#result").addClass("alert-danger");
 
-                    $("#result").text("Végösszeg: " + Math.round(stats.money) + "Ft");
+                    $("#result").text("Végösszeg: " + Math.round(stats.money) + "$");
                     $("#transactions").text(exchangeArr.length + "db tranzakció történt.");
+                    $("#transactions").prop("hidden", false);
+                    let counter = 1;
+
+                    $("#transactionsTable > tbody")[0].innerHTML = "";
+                    for (let tr of exchangeArr) {
+                        $("#transactionsTable").append('<tr><th scope="row">' + (counter++) +
+                            '</th><td>' + formatDate(new Date(tr.date)) +
+                            '<td>' + ((tr.type == "buy") ? 'Vásárlás' : 'Eladás') +
+                            '<td>' + tr.amount +
+                            '<td>' + parseFloat(tr.stock_price.toFixed(6)) +
+                            '<td>' + parseFloat((tr.stock_price * tr.amount).toFixed(6)) + '</tr>');
+                    }
+
                 }
                 $("#loadBtn").prop("disabled", false);
                 $("#spinner").prop("hidden", true);
@@ -347,21 +372,6 @@ function setToExactSize(a, b) {
     return x;
 }
 
-/*function min(arr) {
-    let min;
-    arr.forEach((key) => {
-        if (!isFinite(min)) {
-            if (!key == 0)
-                min = key;
-        } else {
-            if (min > key)
-                min = key;
-        }
-    });
-
-    return min;
-}*/
-
 /*
  * This algoritm will merge two arrays
  * A =      [1, 2, 3, 4]
@@ -386,15 +396,27 @@ function separateExchangeArray(type) {
     return temp;
 }
 
+function getEverynth(array, step) {
+    let tmp = [];
+    for (let i = 0; i < array.length; i += step)
+        tmp.push(array[i]);
+
+    return tmp;
+}
+
 let chart;
 
 function loadChart2(stock) {
+    let step = 5;
+    Highcharts.setOptions({
+        global: {
+            useUTC: false
+        }
+    });
     chart = Highcharts.stockChart('container', {
-
         rangeSelector: {
             selected: 0
         },
-
         yAxis: [{
             height: '40%',
             labels: {
@@ -432,51 +454,47 @@ function loadChart2(stock) {
                 text: 'MACD'
             }
         }],
-
         title: {
             text: stock + ' Stock Price'
         },
-
         xAxis: {
             categories: dates
         },
-
         legend: {
             align: 'center',
             verticalAlign: 'top',
             enabled: true
         },
-
         series: [
             {
                 name: stock,
-                data: merge(dates, closePrices),
+                data: getEverynth(merge(dates, closePrices), step),
                 tooltip: {
                     valueDecimals: 2
                 }
             },
             {
                 name: 'SMA 50',
-                data: merge(dates, sma50Arr)
+                data: getEverynth(merge(dates, sma50Arr), step)
             },
             {
                 name: 'SMA 200',
-                data: merge(dates, sma200Arr)
+                data: getEverynth(merge(dates, sma200Arr), step)
             },
             {
                 name: 'RSI',
                 yAxis: 1,
-                data: merge(dates, rsiArr)
+                data: getEverynth(merge(dates, rsiArr), step)
             },
             {
                 name: 'MACD',
                 yAxis: 2,
-                data: merge(dates, macdArr)
+                data: getEverynth(merge(dates, macdArr), step)
             },
             {
                 name: 'Signal',
                 yAxis: 2,
-                data: merge(dates, macdSignalArr)
+                data: getEverynth(merge(dates, macdSignalArr), step)
             },
             {
                 name: 'Buy',
@@ -568,7 +586,6 @@ function smaSignalTest(point) {
     return false;
 }
 
-let sma25Arr = [];
 let sma50Arr = [];
 let sma200Arr = [];
 let rsiArr = [];
@@ -594,22 +611,19 @@ function createWorker(i) {
     });
 }
 
-function reCalculate(point) {
+function reCalculate() {
     return new Promise(function (resolve) {
         let promises = [];
         let message;
         let endPoint = dataLimit.limit ? dataLimit.quantity : closePrices.length;
 
-        message = {type: "SMA", data: [closePrices, endPoint, 25]};
-        promises.push(createWorker(message));
-
         message = {type: "RSI", data: [closePrices, endPoint, 14]};
         promises.push(createWorker(message));
 
-        message = {type: "EMA", data: [closePrices, lowEma[point - 1], endPoint, lowEmaPeriod]};
+        message = {type: "EMA", data: [closePrices, endPoint, lowEmaPeriod]};
         promises.push(createWorker(message));
 
-        message = {type: "EMA", data: [closePrices, highEma[point - 1], endPoint, highEmaPeriod]};
+        message = {type: "EMA", data: [closePrices, endPoint, highEmaPeriod]};
         promises.push(createWorker(message));
 
         message = {type: "SMA", data: [closePrices, endPoint, 50]};
@@ -619,18 +633,17 @@ function reCalculate(point) {
         promises.push(createWorker(message));
 
         Promise.all(promises).then(function (data) {
-            sma25Arr = data[0];
-            rsiArr = data[1];
-            lowEma = data[2];
-            highEma = data[3];
+            rsiArr = data[0];
+            lowEma = data[1];
+            highEma = data[2];
 
-            sma50Arr = data[4];
-            sma200Arr = data[5];
+            sma50Arr = data[3];
+            sma200Arr = data[4];
 
             lowEma = setToExactSize(lowEma, highEma);
             macdArr = subtractArrays(lowEma, highEma);
 
-            message = {type: "EMA", data: [macdArr, macdSignalArr, endPoint, (highEmaPeriod + signalSmoothing)]};
+            message = {type: "EMA", data: [macdArr, endPoint, (highEmaPeriod + signalSmoothing)]};
             let promise = createWorker(message).then(function (data) {
                 macdSignalArr = data;
                 resolve();
@@ -715,7 +728,8 @@ function exchange(startingMoney, mutant = null) {
         if (wallet > closePrices[i] && decisionTest() == "buy") {
             if (isFinite(lastBuy) && lastBuy * 0.998 < stocks * closePrices[i])
                 continue;
-
+            if (exchangeArr.length == 64)
+                console.log(dates[i] + ": " + decision.buy);
             buy(closePrices[i], i);
         } else if (stocks > 0 && decisionTest() == "sell") {
             sell(closePrices[i], i);
@@ -730,8 +744,15 @@ let lastBuy;
 
 function buy(stock_price, i) {
     let max = Math.floor(wallet * 0.999 / stock_price);
-    let buy = Math.floor(settings.buyLimit / stock_price);
-    buy = buy > max ? max : buy;
+    let buy = max;
+    if (settings.buyLimit != -1) {
+        buy = Math.floor(settings.buyLimit / stock_price);
+        buy = buy > max ? max : buy;
+    }
+
+    if (!(buy >= 1))
+        return;
+
     stocks += buy;
     wallet -= buy * stock_price * 1.001;
 

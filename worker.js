@@ -16,12 +16,11 @@ self.onmessage = function (event) {
             message = [];
             break;
         case "EMA":
-            self.postMessage(WcalcEMA(message[0], message[1], message[2], message[3]));
+            self.postMessage(WcalcEMA(message[0], message[1], message[2]));
             data = [];
             message = [];
             break;
     }
-
 };
 
 function WcalcSMA(arr, end, period) {
@@ -33,9 +32,9 @@ function WcalcSMA(arr, end, period) {
             tmp.push(0);
         } else {
             for (let i = point; i > point - period; i--) {
-                sum += Number(arr[i]);
+                sum += arr[i];
             }
-            tmp.push(Number((sum / period).toFixed(6)));
+            tmp.push(parseFloat((sum / period).toFixed(6)));
         }
     }
 
@@ -49,11 +48,11 @@ function WcalcSMAPoint(arr, point, period) {
         tmp.push(0)
     } else {
         for (let i = point; i > point - period; i--) {
-            sum += Number(arr[i]);
+            sum += arr[i];
         }
     }
 
-    return Number((sum / period).toFixed(6));
+    return parseFloat((sum / period).toFixed(6));
 }
 
 function WcalcRSI(arr, end, period) {
@@ -90,7 +89,7 @@ function WcalcRSI(arr, end, period) {
             table[point].rsi = 100 - (100 / (1 + RS));
         }
 
-        tmp.push(Number(table[point].rsi.toFixed(6)));
+        tmp.push(parseFloat(table[point].rsi.toFixed(6)));
     }
 
     return tmp;
@@ -123,7 +122,7 @@ function WcalcAVGGain(arr, lo, hi, tag) {
 
 let emaMultiplierMap = new Map([]);
 
-function WcalcEMA(arr, lastEma, end, period) {
+function WcalcEMA(arr, end, period) {
     let tmp = [];
 
     for (let point = 0; point < end; point++) {
@@ -137,9 +136,9 @@ function WcalcEMA(arr, lastEma, end, period) {
         if (point < period - 1) {
             tmp.push(0);
         } else if (point == period - 1) {
-            tmp.push(Number((WcalcSMAPoint(arr, point, period)).toFixed(6)));
+            tmp.push(parseFloat((WcalcSMAPoint(arr, point, period)).toFixed(6)));
         } else {
-            tmp.push(Number(((arr[point] * multiplier) + tmp[point - 1] * (1 - multiplier)).toFixed(6)));
+            tmp.push(parseFloat(((arr[point] * multiplier) + tmp[point - 1] * (1 - multiplier)).toFixed(6)));
         }
     }
 
