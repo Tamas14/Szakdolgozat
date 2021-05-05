@@ -1,9 +1,7 @@
-let timer;
 let mutants;
 let i;
 
 let start_money = 10000;
-let processing = false;
 let best_mutation;
 
 genetic = {
@@ -12,8 +10,12 @@ genetic = {
     iterations: 100
 }
 
-function startGeneticAlgorithm() {
+async function startGeneticAlgorithm() {
+	reset();
+    disableButtons();
+    genetic.start_money = parseFloat($("#startMoney").val());
     init();
+	await sleep(500);
     process();
 }
 
@@ -42,7 +44,13 @@ async function newGeneration(population) {
         console.info("Cannot get better population in " + genetic.iterations + " interations.");
         console.info(best_mutation);
         genetic.isProcessing = false;
-        disableOutput = false;
+        
+	if(!disableOutput){
+        alert("Best fitness: " + best_mutation.fitness);
+		saveToFile();
+	}
+		disableOutput = false;
+        $("#geneticBtn").prop("disabled", false);
         return;
     }
 
@@ -52,6 +60,7 @@ async function newGeneration(population) {
     let result = [];
     for (let mutant of population) {
         result.push(await loadStock(mutant));
+		
         fitness.push(calcFitness(start_money, result[result.length - 1].money));
     }
 
@@ -127,4 +136,14 @@ function getInitialPopulation() {
 
 function getRandomNumber() {
     return Math.random() * 10;
+}
+
+function saveToFile(){
+    let str = "let weights = [";
+    for(let i of best_mutation.weights){
+        str += i + ",";
+    }
+    str = str.substring(0, str.length-1);
+    str += "]";
+    download(str, "weights.js", "js");
 }

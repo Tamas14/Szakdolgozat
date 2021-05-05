@@ -20,24 +20,34 @@ let closePrices = [];
 let exchangeArr = [];
 
 //The data which is being processed can be limited for testing purpose
-let dataLimit = {limit: false, quantity: 100000};
+let dataLimit = {
+    limit: false,
+    quantity: 100000
+};
 
 /*
  * This object makes the algorithm wait <remainingWaitTime> iterations
  * After buying, the <remainingWaitTime> goint to be equals to <minimumWaitTime>
  */
-let stopTrading = {minimumWaitTime: 10, remainingWaitTime: 0};
+let stopTrading = {
+    minimumWaitTime: 10,
+    remainingWaitTime: 0
+};
 
 let settings = {
     startingMoney: 10000,
     buyLimit: 2000
-}
+};
 
+//If true, the console and GUI outputs are disabled
 let disableOutput = false;
 
 //Contains all the tickers from /stocks folder
 let tickers = [];
 
+const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+
+//Loads all the tickers from the stocks folder, and sets up click actions
 $(document).ready(function () {
     console.log("-> Program init started");
     $.ajax({
@@ -71,29 +81,22 @@ $(document).ready(function () {
     });
 });
 
-let toCSV = [];
-
-let headers = {
-    ticker: 'Ticker'
-}
-
-const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
 let tickerIndex = 0;
 let bestofthebest = {allGains: 0};
 
-async function bigTest(csvArray = null) {
+//It search for the best ticker
+async function searchForOptimum(csvArray = null) {
     if (csvArray == null) {
         let ticker = tickers[tickerIndex++];
         $("#stocks").val(ticker);
         await loadStock(weights);
 
-        init();
-        process();
+        startGeneticAlgorithm();
 
         while (genetic.isProcessing)
             await sleep(1000);
 
-        await generateStatistics(false, bigTest);
+        await generateStatistics(false, searchForOptimum);
     } else {
         let allGains = 0;
         for (let item of csvArray) {
@@ -111,11 +114,18 @@ async function bigTest(csvArray = null) {
             console.log(bestofthebest);
             return;
         } else {
-            bigTest();
+            searchForOptimum();
         }
     }
 }
 
+let toCSV = [];
+
+let headers = {
+    ticker: 'Ticker'
+}
+
+//Generating data for my charts in dissertation
 async function generateStatistics(download, callback = () => {
 }) {
     disableOutput = true;
@@ -146,6 +156,7 @@ async function generateStatistics(download, callback = () => {
     callback(toCSV);
 }
 
+//Makes the date two digits
 function extendDate(num) {
     if (num < 10)
         return "0" + num;
@@ -154,6 +165,20 @@ function extendDate(num) {
 
 function formatDate(d) {
     return d.getFullYear() + ". " + extendDate(d.getMonth() + 1) + ". " + extendDate(d.getDate()) + " " + extendDate(d.getHours()) + ":" + extendDate(d.getMinutes())
+}
+
+function disableButtons() {
+    $("#loadBtn").prop("disabled", true);
+    $("#geneticBtn").prop("disabled", true);
+    $("#loadBtnText").text("Folyamatban...");
+    $("#spinner").prop("hidden", false);
+}
+
+function enableButtons() {
+    $("#loadBtn").prop("disabled", false);
+    $("#geneticBtn").prop("disabled", false);
+    $("#loadBtnText").text("Indítás");
+    $("#spinner").prop("hidden", true);
 }
 
 function reset() {
@@ -194,10 +219,8 @@ function loadStock(mutant = null) {
 
             stopTrading = {minimumWaitTime: 10, remainingWaitTime: 0};
 
-            settings = {
-                startingMoney: 10000,
-                buyLimit: 2000
-            }
+            settings.startingMoney = $("#startMoney").val();
+			settings.buyLimit = parseFloat($("#buyLimit").val());
 
             wallet = undefined;
             stocks = 0;
@@ -210,9 +233,7 @@ function loadStock(mutant = null) {
 
             stats.money = exchange(settings.startingMoney, mutant);
 
-            $("#loadBtn").prop("disabled", false);
-            $("#spinner").prop("hidden", true);
-            $("#loadBtnText").text("Indítás");
+            enableButtons();
 
             resolve(stats);
             return;
@@ -221,9 +242,7 @@ function loadStock(mutant = null) {
         if (mutant != null && dates != null)
             reset();
 
-        $("#loadBtn").prop("disabled", true);
-        $("#loadBtnText").text("Folyamatban...");
-        $("#spinner").prop("hidden", false);
+        disableButtons();
 
         settings.startingMoney = $("#startMoney").val();
         settings.buyLimit = parseFloat($("#buyLimit").val());
@@ -232,6 +251,8 @@ function loadStock(mutant = null) {
         dataLimit.quantity = $("#dataLimit").val();
 
         let stock = $("#stocks option:selected").text();
+		
+		console.log(stock);
 
         $.ajax({
             type: "GET",
@@ -289,13 +310,11 @@ function loadStock(mutant = null) {
                             '<td>' + ((tr.type == "buy") ? 'Vásárlás' : 'Eladás') +
                             '<td>' + tr.amount +
                             '<td>' + parseFloat(tr.stock_price.toFixed(6)) +
-                            '<td>' + parseFloat((tr.stock_price * tr.amount).toFixed(6)) + '</tr>');
+                            '<td>' + parseFloat((tr.stock_price * tr.amount).toFixed(2)) + '</tr>');
                     }
 
                 }
-                $("#loadBtn").prop("disabled", false);
-                $("#spinner").prop("hidden", true);
-                $("#loadBtnText").text("Indítás");
+                enableButtons();
 
                 if (!disableOutput)
                     loadChart2(stock);
@@ -306,6 +325,7 @@ function loadStock(mutant = null) {
     });
 }
 
+//Splitting the csv data into lines
 function processData(allText) {
     lines = [];
     let allTextLines = allText.split(/\r\n|\n/);
@@ -407,7 +427,7 @@ function getEverynth(array, step) {
 let chart;
 
 function loadChart2(stock) {
-    let step = 5;
+    let step = 1;
     Highcharts.setOptions({
         global: {
             useUTC: false
@@ -471,30 +491,36 @@ function loadChart2(stock) {
                 data: getEverynth(merge(dates, closePrices), step),
                 tooltip: {
                     valueDecimals: 2
-                }
+                },
+				color: '#000000'
             },
             {
                 name: 'SMA 50',
-                data: getEverynth(merge(dates, sma50Arr), step)
+                data: getEverynth(merge(dates, sma50Arr), step),
+				color: '#ff0000'
             },
             {
                 name: 'SMA 200',
-                data: getEverynth(merge(dates, sma200Arr), step)
+                data: getEverynth(merge(dates, sma200Arr), step),
+				color: '#0000ff'
             },
             {
                 name: 'RSI',
                 yAxis: 1,
-                data: getEverynth(merge(dates, rsiArr), step)
+                data: getEverynth(merge(dates, rsiArr), step),
+				color: '#000000'
             },
             {
                 name: 'MACD',
                 yAxis: 2,
-                data: getEverynth(merge(dates, macdArr), step)
+                data: getEverynth(merge(dates, macdArr), step),
+				color: '#000000'
             },
             {
                 name: 'Signal',
                 yAxis: 2,
-                data: getEverynth(merge(dates, macdSignalArr), step)
+                data: getEverynth(merge(dates, macdSignalArr), step),
+				color: '#ff0000'
             },
             {
                 name: 'Buy',
@@ -502,8 +528,10 @@ function loadChart2(stock) {
                 lineWidth: 0,
                 marker: {
                     enabled: true,
-                    radius: 4,
-                    fillColor: "#00FF00"
+                    radius: 5,
+                    fillColor: "#00FF00",
+					lineWidth: 1,
+					lineColor: "#000000"
                 },
                 tooltip: {
                     valueDecimals: 2
@@ -520,8 +548,10 @@ function loadChart2(stock) {
                 lineWidth: 0,
                 marker: {
                     enabled: true,
-                    radius: 4,
-                    fillColor: "#FF0000"
+                    radius: 5,
+                    fillColor: "#FF0000",
+					lineWidth: 1,
+					lineColor: "#000000"
                 },
                 tooltip: {
                     valueDecimals: 3
@@ -728,8 +758,6 @@ function exchange(startingMoney, mutant = null) {
         if (wallet > closePrices[i] && decisionTest() == "buy") {
             if (isFinite(lastBuy) && lastBuy * 0.998 < stocks * closePrices[i])
                 continue;
-            if (exchangeArr.length == 64)
-                console.log(dates[i] + ": " + decision.buy);
             buy(closePrices[i], i);
         } else if (stocks > 0 && decisionTest() == "sell") {
             sell(closePrices[i], i);
